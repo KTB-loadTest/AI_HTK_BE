@@ -10,10 +10,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: ai-htk
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,6 +32,8 @@ jobs:
 
       - name: Build (skip tests)
         run: gradlew clean build -x test
+        working-directory: ./ai-htk
 
       - name: Run Tests
         run: gradlew test
+        working-directory: ./ai-htk

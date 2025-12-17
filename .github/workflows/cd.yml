@@ -36,7 +36,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build JAR
-        run: gradlew clean bootJar
+        run: ./gradlew clean bootJar
 
   build-and-push-image:
     needs: test-and-build

@@ -10,6 +10,10 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: ai-hkt
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,11 +34,9 @@ jobs:
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-        working-directory: ./ai-htk
 
       - name: Build JAR
         run: gradlew clean bootJar
-        working-directory: ./ai-htk
 
   build-and-push-image:
     needs: test-and-build
@@ -57,7 +59,6 @@ jobs:
             --platform linux/amd64 \
             -t ${{ secrets.DOCKER_USERNAME }}/hkt-be:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/hkt-be:latest
-        working-directory: ./ai-htk
 
   deploy:
     needs: build-and-push-image

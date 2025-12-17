@@ -54,6 +54,7 @@ jobs:
           password: ${{ secrets.DOCKER_TOKEN }}
 
       - name: Build & Push Docker Image
+        working-directory: ai-hkt
         run: |
           docker build \
             --platform linux/amd64 \

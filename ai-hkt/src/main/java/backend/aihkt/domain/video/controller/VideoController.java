@@ -17,6 +17,6 @@ public class VideoController {
     public ResponseEntity<?> createVideos(@RequestBody VideoRequest.Create request) {
         var result = videoService.createVideos(request.userName(), request.title(), request.authorName());
 
-        return ResponseEntity.ok();
+        return ResponseEntity.ok().build();
     }
 }

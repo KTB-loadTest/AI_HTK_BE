@@ -1,4 +1,4 @@
-name: Backend Java CI
+name: Spring Boot CI
 
 on:
   push:

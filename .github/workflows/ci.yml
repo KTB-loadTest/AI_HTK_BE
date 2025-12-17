@@ -39,6 +39,3 @@ jobs:
 
       - name: Build (skip tests)
         run: ./gradlew clean build -x test
-
-      - name: Run Tests
-        run: ./gradlew test

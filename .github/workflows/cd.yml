@@ -12,7 +12,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ai-htk
+        working-directory: ./ai-htk
 
     steps:
       - name: Checkout

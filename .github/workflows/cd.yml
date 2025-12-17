@@ -80,8 +80,8 @@ jobs:
               set -e
               cd /home/${{ secrets.SERVER_USER }}/backend
 
-              docker compose pull
-              docker compose up -d
+              sudo docker compose pull
+              sudo docker compose up -d
 
-              docker image prune -f
+              sudo docker image prune -f
           EOF

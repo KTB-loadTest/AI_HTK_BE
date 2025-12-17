@@ -32,12 +32,12 @@ jobs:
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-        working-directory: ./ai-htk
+        working-directory: ./ai-hkt
 
       - name: Build (skip tests)
         run: ./gradlew clean build -x test
-        working-directory: ./ai-htk
+        working-directory: ./ai-hkt
 
       - name: Run Tests
         run: ./gradlew test
-        working-directory: ./ai-htk
+        working-directory: ./ai-hkt

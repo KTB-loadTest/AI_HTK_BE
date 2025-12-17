@@ -10,6 +10,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: ai-hkt
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,18 +30,15 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('ai-htk/**/gradle*', 'ai-htk/**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('ai-hkt/**/gradle*', 'ai-hkt/**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-        working-directory: ./ai-hkt/gradlew
 
       - name: Build (skip tests)
         run: ./gradlew clean build -x test
-        working-directory: ./ai-hkt/gradlew
 
       - name: Run Tests
         run: ./gradlew test
-        working-directory: ./ai-hkt/gradlew

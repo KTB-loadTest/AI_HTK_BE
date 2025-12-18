@@ -2,6 +2,7 @@ package backend.aihkt.domain.user.controller;
 
 import backend.aihkt.domain.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -13,6 +14,9 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 public class UserController {
+    @Value("${cors.allowed.origin}")
+    private final String front_url;
+
     private final UserService userService;
 
     @GetMapping("/login")
@@ -22,9 +26,9 @@ public class UserController {
     }
 
     @GetMapping("/callback")
-    public String callback(@RequestParam String code) {
+    public RedirectView callback(@RequestParam String code) {
         userService.handleCallback(code);
-        return "Login successful";
+        return new RedirectView(front_url + "/?login=success");
     }
 
     @PostMapping("/refresh-token")

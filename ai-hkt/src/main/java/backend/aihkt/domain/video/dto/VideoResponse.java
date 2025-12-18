@@ -11,7 +11,7 @@ public class VideoResponse {
 
     public record VideoInfo(
             Long id,
-            Long youtubeUrl
+            String youtubeUrl
     ) {
     }
 }

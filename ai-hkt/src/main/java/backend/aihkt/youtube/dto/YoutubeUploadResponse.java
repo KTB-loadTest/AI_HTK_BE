@@ -5,7 +5,8 @@ package backend.aihkt.youtube.dto;
  */
 public record YoutubeUploadResponse(
         String videoId,
-        String uploadUrl,
+        String youtubeUrl,
+        String resumableUploadUrl,
         int statusCode
 ) {
 }

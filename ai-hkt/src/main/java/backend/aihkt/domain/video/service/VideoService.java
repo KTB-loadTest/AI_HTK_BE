@@ -3,6 +3,8 @@ package backend.aihkt.domain.video.service;
 import backend.aihkt.domain.user.entity.Users;
 import backend.aihkt.domain.user.repository.UserRepository;
 import backend.aihkt.domain.video.dto.VideoResponse;
+import backend.aihkt.domain.video.entity.Video;
+import backend.aihkt.domain.video.repository.VideoRepository;
 import backend.aihkt.youtube.dto.YoutubeUploadRequest;
 import backend.aihkt.youtube.dto.YoutubeUploadResponse;
 import backend.aihkt.youtube.service.YoutubeService;
@@ -26,6 +28,7 @@ import java.util.List;
 public class VideoService {
     private final WebClient webClient;
     private final UserRepository userRepository;
+    private final VideoRepository videoRepository;
     private final YoutubeService youtubeService;
 
     @Value("${trailer.api.url}")
@@ -44,11 +47,21 @@ public class VideoService {
                 multipartFile
         );
 
-        String youtubeUrl = uploadResponse.videoId() == null
-                ? null
-                : "https://www.youtube.com/watch?v=" + uploadResponse.videoId();
+        String videoId = uploadResponse.videoId();
+        String youtubeUrl = uploadResponse.youtubeUrl();
 
-        VideoResponse.VideoInfo info = new VideoResponse.VideoInfo(null, youtubeUrl);
+        if (videoId != null && youtubeUrl != null) {
+            Video video = Video.create(
+                    videoId,
+                    youtubeUrl,
+                    uploadResponse.resumableUploadUrl(),
+                    null,
+                    true
+            );
+            videoRepository.save(video);
+        }
+
+        VideoResponse.VideoInfo info = new VideoResponse.VideoInfo(videoId, youtubeUrl);
         return new VideoResponse.Create(Collections.singletonList(info));
     }
 

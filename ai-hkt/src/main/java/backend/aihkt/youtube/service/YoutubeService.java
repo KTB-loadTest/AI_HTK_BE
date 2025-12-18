@@ -72,7 +72,8 @@ public class YoutubeService {
             sessionRepository.deleteById(session.getSessionId());
 
             String videoId = extractVideoId(uploadResult.responseBody());
-            return new YoutubeUploadResponse(videoId, session.getUploadUrl(), uploadResult.statusCode());
+            String youtubeUrl = videoId == null ? null : "https://www.youtube.com/watch?v=" + videoId;
+            return new YoutubeUploadResponse(videoId, youtubeUrl, session.getUploadUrl(), uploadResult.statusCode());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("업로드 도중 인터럽트가 발생했습니다.", e);

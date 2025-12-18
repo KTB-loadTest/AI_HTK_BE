@@ -8,10 +8,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Getter
 public class Video {
 
     @Id
@@ -31,4 +33,17 @@ public class Video {
     @Column(name = "is_activated", nullable= false)
     private Boolean isActivated;
 
+    public static Video create(String videoId,
+                               String youtubeUrl,
+                               String resumableUploadUrl,
+                               Book book,
+                               boolean isActivated) {
+        Video video = new Video();
+        video.id = videoId;
+        video.youtubeUrl = youtubeUrl;
+        video.resumableUploadUrl = resumableUploadUrl;
+        video.book = book;
+        video.isActivated = isActivated;
+        return video;
+    }
 }

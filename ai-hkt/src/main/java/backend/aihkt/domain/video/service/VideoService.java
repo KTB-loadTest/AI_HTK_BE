@@ -24,7 +24,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class VideoService {
-    private final WebClient webClient = WebClient.create();
+    private final WebClient webClient;
     private final UserRepository userRepository;
     private final YoutubeService youtubeService;
 

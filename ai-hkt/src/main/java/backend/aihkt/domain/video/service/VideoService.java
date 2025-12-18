@@ -102,6 +102,12 @@ public class VideoService {
                                     "author", authorName
                             )))
                     .retrieve()
+                    .onStatus(
+                            status -> status.value() == 422,
+                            resp -> resp.bodyToMono(String.class)
+                                    .defaultIfEmpty("실패했지만 실패 결과 body 비어있음")
+                                    .map(body -> new IllegalArgumentException("FastAPI 422 검증 실패: " + body))
+                    )
                     .bodyToMono(byte[].class)
                     .block(Duration.ofMinutes(10)); // AI 생성이 오래 걸리므로 타임아웃 넉넉히
         } catch (WebClientResponseException ex) {

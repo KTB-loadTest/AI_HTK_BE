@@ -30,6 +30,7 @@ public class YoutubeService {
 
     private static final String RESUMABLE_ENDPOINT =
             "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status,contentDetails";
+    private static final String VIDEOS_ENDPOINT = "https://www.googleapis.com/youtube/v3/videos";
     private static final int CHUNK_SIZE = 256 * 1024; // 256KB 단위
 
     private final YoutubeUploadSessionRepository sessionRepository;
@@ -78,6 +79,56 @@ public class YoutubeService {
         } catch (IOException e) {
             throw new IllegalStateException("유튜브 업로드 중 오류가 발생했습니다.", e);
         }
+    }
+
+    public void deleteVideo(Long userId, String videoId) {
+        String accessToken = refreshAccessToken(userId);
+        URI uri = URI.create(VIDEOS_ENDPOINT + "?id=" + videoId);
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .header("Authorization", "Bearer " + accessToken)
+                .header("Accept", "application/json")
+                .DELETE()
+                .build();
+        try {
+            HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+            if (response.statusCode() / 100 != 2) {
+                throw new IllegalStateException("영상 삭제 실패: HTTP " + response.statusCode());
+            }
+        } catch (IOException | InterruptedException e) {
+            throw new IllegalStateException("영상 삭제 중 오류", e);
+        }
+    }
+
+    public void updatePrivacy(Long userId, String videoId, String privacyStatus) {
+        String normalized = normalizePrivacy(privacyStatus);
+        String accessToken = refreshAccessToken(userId);
+        URI uri = URI.create(VIDEOS_ENDPOINT + "?part=status");
+
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("id", videoId);
+        ObjectNode status = root.putObject("status");
+        status.put("privacyStatus", normalized);
+
+        try {
+            String payload = objectMapper.writeValueAsString(root);
+            HttpRequest request = HttpRequest.newBuilder(uri)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Content-Type", "application/json; charset=UTF-8")
+                    .PUT(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                throw new IllegalStateException("영상 공개범위 변경 실패: HTTP " + response.statusCode() + " - " + response.body());
+            }
+        } catch (IOException | InterruptedException e) {
+            throw new IllegalStateException("영상 공개범위 변경 중 오류", e);
+        }
+    }
+
+    private String refreshAccessToken(Long userId) {
+        Users user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+        return refreshAccessToken(user);
     }
 
     private String refreshAccessToken(Users user) {
@@ -231,6 +282,17 @@ public class YoutubeService {
     private String resolveContentType(MultipartFile file) {
         String contentType = file.getContentType();
         return contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType;
+    }
+
+    private String normalizePrivacy(String privacy) {
+        if (privacy == null) {
+            return "private";
+        }
+        String p = privacy.toLowerCase();
+        if (p.equals("public") || p.equals("private") || p.equals("unlisted")) {
+            return p;
+        }
+        throw new IllegalArgumentException("privacyStatus는 public/private/unlisted 중 하나여야 합니다.");
     }
 
     private record InitiateResult(String uploadUrl, String contentType) {

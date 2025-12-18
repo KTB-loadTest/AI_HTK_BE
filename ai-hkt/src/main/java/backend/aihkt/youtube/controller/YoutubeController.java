@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
@@ -35,6 +37,21 @@ public class YoutubeController {
                                                         @RequestPart("file") MultipartFile file) {
         YoutubeUploadResponse response = youtubeService.upload(userId, metadata, file);
         return ResponseEntity.status(response.statusCode()).body(response);
+    }
+
+    @DeleteMapping("/videos")
+    public ResponseEntity<Void> deleteVideo(@RequestParam("userId") Long userId,
+                                            @RequestParam("videoId") String videoId) {
+        youtubeService.deleteVideo(userId, videoId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/videos/privacy")
+    public ResponseEntity<Void> updatePrivacy(@RequestParam("userId") Long userId,
+                                              @RequestParam("videoId") String videoId,
+                                              @RequestParam("privacyStatus") String privacyStatus) {
+        youtubeService.updatePrivacy(userId, videoId, privacyStatus);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/stats")

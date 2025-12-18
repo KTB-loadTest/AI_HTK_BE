@@ -2,7 +2,6 @@ package backend.aihkt.domain.user.controller;
 
 import backend.aihkt.domain.user.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -14,9 +13,6 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 public class UserController {
-    @Value("${cors.allowed.origin}")
-    private String front_url;
-
     private final UserService userService;
 
     @GetMapping("/login")
@@ -28,7 +24,7 @@ public class UserController {
     @GetMapping("/callback")
     public RedirectView callback(@RequestParam String code) {
         userService.handleCallback(code);
-        return new RedirectView(front_url + "/?login=success");
+        return new RedirectView("hkt.anyword-bigfestival.cloud/?login=success");
     }
 
     @PostMapping("/refresh-token")

@@ -194,7 +194,6 @@ public class YoutubeService {
 
                 HttpRequest request = HttpRequest.newBuilder(URI.create(uploadUrl))
                         .header("Authorization", "Bearer " + accessToken)
-                        .header("Content-Length", String.valueOf(buffer.length))
                         .header("Content-Type", contentType)
                         .header("Content-Range", "bytes %d-%d/%d".formatted(start, end, fileSize))
                         .PUT(HttpRequest.BodyPublishers.ofByteArray(buffer))

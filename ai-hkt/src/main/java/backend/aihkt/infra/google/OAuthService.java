@@ -1,5 +1,6 @@
 package backend.aihkt.infra.google;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -11,8 +12,9 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@RequiredArgsConstructor
 public class OAuthService {
-    private final WebClient webClient = WebClient.create();
+    private final WebClient webClient;
 
     @Value("${GOOGLE_CLIENT_ID}")
     private String clientId;
@@ -21,6 +23,8 @@ public class OAuthService {
     private String clientSecret;
 
     private static final List<String> SCOPES = List.of(
+            "openid",
+            "profile",
             "https://www.googleapis.com/auth/youtube.force-ssl",
             "https://www.googleapis.com/auth/yt-analytics.readonly",
             "https://www.googleapis.com/auth/yt-analytics-monetary.readonly"
@@ -28,7 +32,7 @@ public class OAuthService {
 
     public String buildGoogleAuthorizeUrl(String redirectUri, String state) {
         return UriComponentsBuilder
-                .fromPath("https://accounts.google.com/o/oauth2/v2/auth")
+                .fromUriString("https://accounts.google.com/o/oauth2/v2/auth")
                 .queryParam("client_id", clientId)
                 .queryParam("redirect_uri", redirectUri)
                 .queryParam("response_type", "code")
@@ -36,7 +40,7 @@ public class OAuthService {
                 .queryParam("access_type", "offline")  // refresh token 받기
                 .queryParam("prompt", "consent")       // scope 변경/재동의 시 refresh token 재발급 유도
                 .queryParam("state", state)
-                .build(true)
+                .encode()
                 .toUriString();
     }
 

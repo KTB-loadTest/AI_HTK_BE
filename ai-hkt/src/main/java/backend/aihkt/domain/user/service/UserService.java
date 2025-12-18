@@ -19,12 +19,7 @@ public class UserService {
     private String redirectUri;
 
     public String getLoginUrl() {
-        return "https://accounts.google.com/o/oauth2/v2/auth?" +
-                "client_id=" + "YOUR_CLIENT_ID" +
-                "&redirect_uri=" + redirectUri +
-                "&scope=openid%20profile%20email%20https://www.googleapis.com/auth/youtube.upload%20https://www.googleapis.com/auth/youtube.readonly" +
-                "&response_type=code" +
-                "&access_type=offline";
+        return oauthService.buildGoogleAuthorizeUrl(redirectUri, "state");
     }
 
     public void handleCallback(String code) {

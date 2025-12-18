@@ -21,7 +21,7 @@ public class Video {
     private String id; // YouTube videoId를 PK로 사용
 
     @Column(name = "youtube_url", nullable = false)
-    private String youtubeUrl; // https://www.youtube.com/watch?v=<videoId>
+    private String youtubeUrl; // https://www.youtube.com/shorts/<videoId>
 
     @Column(name = "resumable_upload_url", length = 2000)
     private String resumableUploadUrl; // 업로드 재개 세션 URL

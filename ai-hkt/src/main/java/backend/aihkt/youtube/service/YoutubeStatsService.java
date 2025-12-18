@@ -59,6 +59,12 @@ public class YoutubeStatsService {
             JsonNode contentDetails = item.path("contentDetails");
             long durationSeconds = parseDurationSeconds(contentDetails.path("duration").asText(""));
             List<VideoStatResponse.DailyMetric> dailyMetrics = fetchDailyMetrics(accessToken, videoId);
+            VideoStatResponse.SummaryAnalytics summaryAnalytics = fetchSummaryAnalytics(accessToken, videoId);
+            List<VideoStatResponse.CountryMetric> countryMetrics = fetchCountryMetrics(accessToken, videoId);
+            List<VideoStatResponse.TrafficMetric> trafficMetrics = fetchTrafficMetrics(accessToken, videoId);
+            List<VideoStatResponse.DeviceMetric> deviceMetrics = fetchDeviceMetrics(accessToken, videoId);
+            List<VideoStatResponse.OsMetric> osMetrics = fetchOsMetrics(accessToken, videoId);
+            List<VideoStatResponse.AgeGenderMetric> ageGenderMetrics = fetchAgeGenderMetrics(accessToken, videoId);
             return new VideoStatResponse(
                     videoId,
                     statistics.path("viewCount").asLong(0),
@@ -66,7 +72,13 @@ public class YoutubeStatsService {
                     statistics.path("commentCount").asLong(0),
                     statistics.path("favoriteCount").asLong(0),
                     durationSeconds,
-                    dailyMetrics
+                    dailyMetrics,
+                    summaryAnalytics,
+                    countryMetrics,
+                    trafficMetrics,
+                    deviceMetrics,
+                    osMetrics,
+                    ageGenderMetrics
             );
         } catch (IOException | InterruptedException e) {
             throw new IllegalStateException("YouTube Data API 호출 실패", e);
@@ -131,38 +143,172 @@ public class YoutubeStatsService {
     private List<VideoStatResponse.DailyMetric> fetchDailyMetrics(String accessToken, String videoId) {
         LocalDate end = LocalDate.now();
         LocalDate start = end.minusDays(6); // 최근 7일
+        String uri = analyticsUri("day",
+                "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage",
+                "video==" + videoId,
+                start, end);
+        JsonNode root = executeAnalytics(accessToken, uri);
+        if (root == null) return List.of();
+        List<VideoStatResponse.DailyMetric> rows = new ArrayList<>();
+        for (JsonNode row : root.path("rows")) {
+            String date = row.path(0).asText();
+            long views = row.path(1).asLong(0);
+            long minutes = row.path(2).asLong(0);
+            double avgDurationSec = row.path(3).asDouble(0);
+            double avgPercentage = row.path(4).asDouble(0);
+            rows.add(new VideoStatResponse.DailyMetric(date, views, minutes, avgDurationSec, avgPercentage));
+        }
+        return rows;
+    }
 
-        String uri = ANALYTICS_API_REPORTS
-                + "?ids=channel==MINE"
-                + "&startDate=" + start
-                + "&endDate=" + end
-                + "&metrics=views,estimatedMinutesWatched,averageViewDuration"
-                + "&dimensions=day"
-                + "&filters=video==" + videoId;
+    private VideoStatResponse.SummaryAnalytics fetchSummaryAnalytics(String accessToken, String videoId) {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(6);
+        String metrics = "impressions,impressionsCtr,views,averageViewDuration,averageViewPercentage,"
+                + "estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares";
+        String uri = analyticsUri("video", metrics, "video==" + videoId, start, end);
+        JsonNode root = executeAnalytics(accessToken, uri);
+        if (root == null) {
+            return new VideoStatResponse.SummaryAnalytics(0,0,0,0,0,0,0,0,0,0,0);
+        }
+        JsonNode row = root.path("rows").path(0);
+        return new VideoStatResponse.SummaryAnalytics(
+                row.path(1).asLong(0),   // impressions
+                row.path(2).asDouble(0), // impressionsCtr
+                row.path(3).asLong(0),   // views
+                row.path(4).asDouble(0), // avg view duration
+                row.path(5).asDouble(0), // avg view percentage
+                row.path(6).asLong(0),   // est minutes
+                row.path(7).asLong(0),   // subs gained
+                row.path(8).asLong(0),   // subs lost
+                row.path(9).asLong(0),   // likes
+                row.path(10).asLong(0),  // comments
+                row.path(11).asLong(0)   // shares
+        );
+    }
 
+    private List<VideoStatResponse.CountryMetric> fetchCountryMetrics(String accessToken, String videoId) {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(6);
+        String uri = analyticsUri("country", "views,impressions,impressionsCtr",
+                "video==" + videoId, start, end);
+        JsonNode root = executeAnalytics(accessToken, uri);
+        if (root == null) return List.of();
+        List<VideoStatResponse.CountryMetric> rows = new ArrayList<>();
+        for (JsonNode r : root.path("rows")) {
+            rows.add(new VideoStatResponse.CountryMetric(
+                    r.path(0).asText(),
+                    r.path(1).asLong(0),
+                    r.path(2).asLong(0),
+                    r.path(3).asDouble(0)
+            ));
+        }
+        return rows;
+    }
+
+    private List<VideoStatResponse.TrafficMetric> fetchTrafficMetrics(String accessToken, String videoId) {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(6);
+        String uri = analyticsUri("trafficSourceType", "views,impressions,impressionsCtr",
+                "video==" + videoId, start, end);
+        JsonNode root = executeAnalytics(accessToken, uri);
+        if (root == null) return List.of();
+        List<VideoStatResponse.TrafficMetric> rows = new ArrayList<>();
+        for (JsonNode r : root.path("rows")) {
+            rows.add(new VideoStatResponse.TrafficMetric(
+                    r.path(0).asText(),
+                    r.path(1).asLong(0),
+                    r.path(2).asLong(0),
+                    r.path(3).asDouble(0)
+            ));
+        }
+        return rows;
+    }
+
+    private List<VideoStatResponse.DeviceMetric> fetchDeviceMetrics(String accessToken, String videoId) {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(6);
+        String uri = analyticsUri("deviceType", "views,impressions,impressionsCtr",
+                "video==" + videoId, start, end);
+        JsonNode root = executeAnalytics(accessToken, uri);
+        if (root == null) return List.of();
+        List<VideoStatResponse.DeviceMetric> rows = new ArrayList<>();
+        for (JsonNode r : root.path("rows")) {
+            rows.add(new VideoStatResponse.DeviceMetric(
+                    r.path(0).asText(),
+                    r.path(1).asLong(0),
+                    r.path(2).asLong(0),
+                    r.path(3).asDouble(0)
+            ));
+        }
+        return rows;
+    }
+
+    private List<VideoStatResponse.OsMetric> fetchOsMetrics(String accessToken, String videoId) {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(6);
+        String uri = analyticsUri("operatingSystem", "views,impressions,impressionsCtr",
+                "video==" + videoId, start, end);
+        JsonNode root = executeAnalytics(accessToken, uri);
+        if (root == null) return List.of();
+        List<VideoStatResponse.OsMetric> rows = new ArrayList<>();
+        for (JsonNode r : root.path("rows")) {
+            rows.add(new VideoStatResponse.OsMetric(
+                    r.path(0).asText(),
+                    r.path(1).asLong(0),
+                    r.path(2).asLong(0),
+                    r.path(3).asDouble(0)
+            ));
+        }
+        return rows;
+    }
+
+    private List<VideoStatResponse.AgeGenderMetric> fetchAgeGenderMetrics(String accessToken, String videoId) {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(6);
+        String uri = analyticsUri("ageGroup,gender", "viewerPercentage",
+                "video==" + videoId, start, end);
+        JsonNode root = executeAnalytics(accessToken, uri);
+        if (root == null) return List.of();
+        List<VideoStatResponse.AgeGenderMetric> rows = new ArrayList<>();
+        for (JsonNode r : root.path("rows")) {
+            rows.add(new VideoStatResponse.AgeGenderMetric(
+                    r.path(0).asText(),
+                    r.path(1).asText(),
+                    r.path(2).asDouble(0)
+            ));
+        }
+        return rows;
+    }
+
+    private String analyticsUri(String dimensions, String metrics, String filters,
+                                LocalDate start, LocalDate end) {
+        StringBuilder sb = new StringBuilder(ANALYTICS_API_REPORTS)
+                .append("?ids=channel==MINE")
+                .append("&startDate=").append(start)
+                .append("&endDate=").append(end)
+                .append("&metrics=").append(metrics)
+                .append("&dimensions=").append(dimensions);
+        if (StringUtils.hasText(filters)) {
+            sb.append("&filters=").append(filters);
+        }
+        return sb.toString();
+    }
+
+    private JsonNode executeAnalytics(String accessToken, String uri) {
         HttpRequest request = HttpRequest.newBuilder(URI.create(uri))
                 .header("Authorization", "Bearer " + accessToken)
                 .header("Accept", "application/json")
                 .GET()
                 .build();
-
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
-                return List.of();
+                return null;
             }
-            JsonNode root = objectMapper.readTree(response.body());
-            List<VideoStatResponse.DailyMetric> rows = new ArrayList<>();
-            for (JsonNode row : root.path("rows")) {
-                String date = row.path(0).asText();
-                long views = row.path(1).asLong(0);
-                long minutes = row.path(2).asLong(0);
-                double avgDurationSec = row.path(3).asDouble(0);
-                rows.add(new VideoStatResponse.DailyMetric(date, views, minutes, avgDurationSec));
-            }
-            return rows;
+            return objectMapper.readTree(response.body());
         } catch (IOException | InterruptedException e) {
-            return List.of();
+            return null;
         }
     }
 

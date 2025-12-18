@@ -72,7 +72,7 @@ public class YoutubeService {
             sessionRepository.deleteById(session.getSessionId());
 
             String videoId = extractVideoId(uploadResult.responseBody());
-            String youtubeUrl = videoId == null ? null : "https://www.youtube.com/watch?v=" + videoId;
+            String youtubeUrl = videoId == null ? null : "https://www.youtube.com/shorts/" + videoId; // 쇼츠 URL
             return new YoutubeUploadResponse(videoId, youtubeUrl, session.getUploadUrl(), uploadResult.statusCode());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

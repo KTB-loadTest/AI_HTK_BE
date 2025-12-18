@@ -19,20 +19,23 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
-import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class VideoService {
     private final WebClient webClient;
+    private final WebClient reactorWebClient = WebClient.builder()
+            .clientConnector(new ReactorClientHttpConnector())
+            .build();
     private final UserRepository userRepository;
     private final VideoRepository videoRepository;
     private final BookRepository bookRepository;
@@ -95,29 +98,24 @@ public class VideoService {
         }
 
         try {
-            byte[] jsonBody = objectMapper.writeValueAsBytes(java.util.Map.of(
-                    "title", title,
-                    "author", authorName
-            ));
+            log.info("[Trailer]");
 
-            return webClient.post()
-                    .uri(UriComponentsBuilder.fromUriString(trailerApiUrl).build(true).toUri())
+            return reactorWebClient.post()
+                    .uri(trailerApiUrl)
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.valueOf("video/mp4"))
-                    .bodyValue(jsonBody)
+                    .bodyValue(Map.of("title", title, "author", authorName))
                     .retrieve()
                     .onStatus(
-                            status -> status.value() == 422,
+                            s -> s.value() == 422,
                             resp -> resp.bodyToMono(String.class)
-                                    .defaultIfEmpty("실패했지만 실패 결과 body 비어있음")
-                                    .map(body -> new IllegalArgumentException("FastAPI 422 검증 실패: " + body))
+                                    .defaultIfEmpty("422인데 응답 바디 없음")
+                                    .map(body -> new IllegalArgumentException("FastAPI 422: " + body))
                     )
                     .bodyToMono(byte[].class)
-                    .block(Duration.ofMinutes(10)); // AI 생성이 오래 걸리므로 타임아웃 넉넉히
+                    .block(Duration.ofMinutes(10));
         } catch (WebClientResponseException ex) {
             throw new IllegalStateException("트레일러 생성 API 실패: HTTP " + ex.getStatusCode().value(), ex);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("JsonParsing Error!!!!!!");
         }
     }
 

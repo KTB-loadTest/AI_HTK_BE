@@ -15,7 +15,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class UserController {
     @Value("${cors.allowed.origin}")
-    private final String front_url;
+    private String front_url;
 
     private final UserService userService;
 

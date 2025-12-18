@@ -3,7 +3,7 @@ package backend.aihkt.domain.video.dto;
 public class VideoRequest {
 
     public record Create(
-            String userName,
+            Long userId,
             String title,
             String authorName
     ) {

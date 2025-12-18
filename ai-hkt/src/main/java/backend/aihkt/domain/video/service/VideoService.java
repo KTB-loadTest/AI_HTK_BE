@@ -31,9 +31,9 @@ public class VideoService {
     @Value("${trailer.api.url}")
     private String trailerApiUrl;
 
-    public VideoResponse.Create createVideos(String userName, String title, String authorName) {
-        Users user = userRepository.findByName(userName)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userName));
+    public VideoResponse.Create createVideos(Long userId, String title, String authorName) {
+        Users user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
 
         byte[] videoBytes = requestTrailer(title, authorName);
         MultipartFile multipartFile = toMultipartFile(videoBytes, buildFileName(title));

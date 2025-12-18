@@ -29,7 +29,7 @@ public class VideoController {
             content = @Content(schema = @Schema(implementation = VideoResponse.Create.class)))
     @PostMapping("/videos")
     public ResponseEntity<VideoResponse.Create> createVideos(@RequestBody VideoRequest.Create request) {
-        var result = videoService.createVideos(request.userName(), request.title(), request.authorName());
+        var result = videoService.createVideos(request.userId(), request.title(), request.authorName());
 
         return ResponseEntity.ok(result);
     }

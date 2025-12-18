@@ -4,6 +4,8 @@ import backend.aihkt.domain.user.entity.Users;
 import backend.aihkt.domain.user.repository.UserRepository;
 import backend.aihkt.domain.video.dto.VideoResponse;
 import backend.aihkt.domain.video.entity.Video;
+import backend.aihkt.domain.video.entity.VideoJob;
+import backend.aihkt.domain.video.repository.VideoJobRepository;
 import backend.aihkt.domain.video.repository.VideoRepository;
 import backend.aihkt.domain.book.entity.Book;
 import backend.aihkt.domain.book.repository.BookRepository;
@@ -13,6 +15,7 @@ import backend.aihkt.youtube.service.YoutubeService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -34,6 +37,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 @Service
 @RequiredArgsConstructor
@@ -45,60 +49,119 @@ public class VideoService {
             .build();
     private final UserRepository userRepository;
     private final VideoRepository videoRepository;
+    private final VideoJobRepository videoJobRepository;
     private final BookRepository bookRepository;
     private final YoutubeService youtubeService;
     private final ObjectMapper objectMapper;
+    @Qualifier("videoTaskExecutor")
+    private final Executor videoTaskExecutor;
 
     @Value("${trailer.api.url}")
     private String trailerApiUrl;
 
-    public VideoResponse.Create createVideos(Long userId, String title, String authorName) {
+    public VideoResponse.CreateJob createVideos(Long userId, String title, String authorName) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
-        log.info("영상 생성 시작 - userId={}, title={}, author={}", userId, title, authorName);
 
-        MultipartFile multipartFile = requestTrailer(title, authorName);
-        log.info("트레일러 생성 완료 - sizeBytes={}", multipartFile == null ? 0 : multipartFile.getSize());
+        VideoJob job = VideoJob.pending(user, title, authorName);
+        videoJobRepository.save(job);
+        log.info("영상 생성 Job 생성 - jobId={}, userId={}, title={}, author={}", job.getId(), userId, title, authorName);
 
-        YoutubeUploadRequest youtubeUploadForm = buildUploadRequest(title,authorName);
-        YoutubeUploadResponse uploadResponse;
         try {
-            uploadResponse = youtubeService.upload(
+            videoTaskExecutor.execute(() -> processVideoJob(job.getId()));
+        } catch (Exception ex) {
+            log.error("영상 생성 작업 실행 실패 - jobId={}", job.getId(), ex);
+            job.markFailure("작업 실행 실패: " + ex.getMessage());
+            videoJobRepository.save(job);
+            throw new IllegalStateException("영상 생성 작업 실행에 실패했습니다.", ex);
+        }
+
+        return new VideoResponse.CreateJob(job.getId(), job.getStatus());
+    }
+
+    public VideoResponse.JobStatus getJobStatus(Long jobId) {
+        VideoJob job = videoJobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("영상 생성 작업을 찾을 수 없습니다: " + jobId));
+
+        return new VideoResponse.JobStatus(
+                job.getId(),
+                job.getStatus(),
+                job.getVideoId(),
+                job.getYoutubeUrl(),
+                job.getTitle(),
+                job.getAuthorName(),
+                job.getMessage()
+        );
+    }
+
+    private void processVideoJob(Long jobId) {
+        MultipartFile multipartFile = null;
+        VideoJob job = null;
+        try {
+            job = getJob(jobId);
+            job.markProcessing();
+            videoJobRepository.save(job);
+
+            Long userId = job.getUser().getId();
+            Users user = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+            log.info("영상 생성 시작 - jobId={}, userId={}, title={}, author={}", jobId, user.getId(), job.getTitle(), job.getAuthorName());
+
+            multipartFile = requestTrailer(job.getTitle(), job.getAuthorName());
+            log.info("트레일러 생성 완료 - jobId={}, sizeBytes={}", jobId, multipartFile == null ? 0 : multipartFile.getSize());
+
+            YoutubeUploadRequest youtubeUploadForm = buildUploadRequest(job.getTitle(), job.getAuthorName());
+            YoutubeUploadResponse uploadResponse = youtubeService.upload(
                     user.getId(),
                     youtubeUploadForm,
                     multipartFile
             );
-        } finally {
-            // 임시 파일 정리
-            if (multipartFile instanceof PathMultipartFile pmf) {
-                pmf.deleteQuietly();
+
+            log.info("유튜브 업로드 완료 - jobId={}, status={}, videoId={}, youtubeUrl={}",
+                    jobId, uploadResponse.statusCode(), uploadResponse.videoId(), uploadResponse.youtubeUrl());
+
+            String videoId = uploadResponse.videoId();
+            String youtubeUrl = uploadResponse.youtubeUrl();
+            Book book = upsertBook(user, job.getTitle(), job.getAuthorName());
+
+            if (videoId != null && youtubeUrl != null) {
+                Video video = Video.create(
+                        videoId,
+                        youtubeUrl,
+                        uploadResponse.resumableUploadUrl(),
+                        book,
+                        true
+                );
+                videoRepository.save(video);
+                log.info("비디오 저장 완료 - jobId={}, videoId={}, bookId={}", jobId, videoId, book.getId());
+                job.markSuccess(videoId, youtubeUrl);
+            } else {
+                job.markFailure("유튜브 업로드 결과에 videoId/youtubeUrl 없음");
+                log.warn("유튜브 업로드 결과에 videoId/youtubeUrl 없음 - jobId={}", jobId);
             }
+
+            videoJobRepository.save(job);
+            log.info("작업 상태 저장 - jobId={}, status={}", job.getId(), job.getStatus());
+        } catch (Exception ex) {
+            log.error("영상 생성 작업 실패 - jobId={}", jobId, ex);
+            if (job != null) {
+                job.markFailure(ex.getMessage());
+                videoJobRepository.save(job);
+            }
+        } finally {
+            cleanupTempFile(multipartFile);
         }
+    }
 
-        log.info("유튜브 업로드 완료 - status={}, videoId={}, youtubeUrl={}",
-                uploadResponse.statusCode(), uploadResponse.videoId(), uploadResponse.youtubeUrl());
+    private VideoJob getJob(Long jobId) {
+        return videoJobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("영상 생성 작업을 찾을 수 없습니다: " + jobId));
+    }
 
-        String videoId = uploadResponse.videoId();
-        String youtubeUrl = uploadResponse.youtubeUrl();
-        Book book = upsertBook(user, title, authorName);
-
-        if (videoId != null && youtubeUrl != null) {
-            Video video = Video.create(
-                    videoId,
-                    youtubeUrl,
-                    uploadResponse.resumableUploadUrl(),
-                    book,
-                    true
-            );
-            videoRepository.save(video);
-            log.info("비디오 저장 완료 - videoId={}, bookId={}", videoId, book.getId());
-        } else {
-            log.warn("유튜브 업로드 결과에 videoId/youtubeUrl 없음 - 저장 생략");
+    private void cleanupTempFile(MultipartFile multipartFile) {
+        if (multipartFile instanceof PathMultipartFile pmf) {
+            pmf.deleteQuietly();
         }
-
-        VideoResponse.Create info = new VideoResponse.Create(videoId, youtubeUrl, youtubeUploadForm.title());
-        log.info("응답 생성 완료 - videoId={}, youtubeUrl={}, videoTitle={}", videoId, youtubeUrl, youtubeUploadForm.title());
-        return info;
     }
 
     private Book upsertBook(Users user, String title, String authorName) {

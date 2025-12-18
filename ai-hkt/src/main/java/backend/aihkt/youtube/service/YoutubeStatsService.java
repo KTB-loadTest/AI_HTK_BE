@@ -58,13 +58,15 @@ public class YoutubeStatsService {
             JsonNode statistics = item.path("statistics");
             JsonNode contentDetails = item.path("contentDetails");
             long durationSeconds = parseDurationSeconds(contentDetails.path("duration").asText(""));
+            List<VideoStatResponse.DailyMetric> dailyMetrics = fetchDailyMetrics(accessToken, videoId);
             return new VideoStatResponse(
                     videoId,
                     statistics.path("viewCount").asLong(0),
                     statistics.path("likeCount").asLong(0),
                     statistics.path("commentCount").asLong(0),
                     statistics.path("favoriteCount").asLong(0),
-                    durationSeconds
+                    durationSeconds,
+                    dailyMetrics
             );
         } catch (IOException | InterruptedException e) {
             throw new IllegalStateException("YouTube Data API 호출 실패", e);
@@ -124,6 +126,44 @@ public class YoutubeStatsService {
             sb.append("&filters=video==").append(videoIds);
         }
         return sb.toString();
+    }
+
+    private List<VideoStatResponse.DailyMetric> fetchDailyMetrics(String accessToken, String videoId) {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(6); // 최근 7일
+
+        String uri = ANALYTICS_API_REPORTS
+                + "?ids=channel==MINE"
+                + "&startDate=" + start
+                + "&endDate=" + end
+                + "&metrics=views,estimatedMinutesWatched,averageViewDuration"
+                + "&dimensions=day"
+                + "&filters=video==" + videoId;
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(uri))
+                .header("Authorization", "Bearer " + accessToken)
+                .header("Accept", "application/json")
+                .GET()
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                return List.of();
+            }
+            JsonNode root = objectMapper.readTree(response.body());
+            List<VideoStatResponse.DailyMetric> rows = new ArrayList<>();
+            for (JsonNode row : root.path("rows")) {
+                String date = row.path(0).asText();
+                long views = row.path(1).asLong(0);
+                long minutes = row.path(2).asLong(0);
+                double avgDurationSec = row.path(3).asDouble(0);
+                rows.add(new VideoStatResponse.DailyMetric(date, views, minutes, avgDurationSec));
+            }
+            return rows;
+        } catch (IOException | InterruptedException e) {
+            return List.of();
+        }
     }
 
     private long parseDurationSeconds(String iso8601) {

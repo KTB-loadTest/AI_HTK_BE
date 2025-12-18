@@ -9,6 +9,15 @@ public record VideoStatResponse(
         long likeCount,
         long commentCount,
         long favoriteCount,
-        long durationSeconds
+        long durationSeconds,
+        java.util.List<DailyMetric> dailyMetrics
 ) {
+
+    public record DailyMetric(
+            String date, // yyyy-MM-dd
+            long views,
+            long estimatedMinutesWatched,
+            double averageViewDurationSeconds
+    ) {
+    }
 }

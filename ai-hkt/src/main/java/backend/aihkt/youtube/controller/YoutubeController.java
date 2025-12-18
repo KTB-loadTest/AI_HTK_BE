@@ -70,7 +70,7 @@ public class YoutubeController {
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "영상 단건 통계 조회", description = "views/likes/comments/favorites 및 재생시간(초)")
+    @Operation(summary = "영상 단건 통계 조회", description = "views/likes/comments/favorites, 재생시간(초) + 최근 7일 일별 조회/시청시간/평균재생시간")
     @ApiResponse(responseCode = "200", description = "통계 조회 성공",
             content = @Content(schema = @Schema(implementation = VideoStatResponse.class)))
     @GetMapping("/stats")

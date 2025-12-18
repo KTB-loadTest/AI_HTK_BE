@@ -10,7 +10,6 @@ import backend.aihkt.domain.book.repository.BookRepository;
 import backend.aihkt.youtube.dto.YoutubeUploadRequest;
 import backend.aihkt.youtube.dto.YoutubeUploadResponse;
 import backend.aihkt.youtube.service.YoutubeService;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +32,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -62,11 +60,12 @@ public class VideoService {
         MultipartFile multipartFile = requestTrailer(title, authorName);
         log.info("트레일러 생성 완료 - sizeBytes={}", multipartFile == null ? 0 : multipartFile.getSize());
 
+        YoutubeUploadRequest youtubeUploadForm = buildUploadRequest(title,authorName);
         YoutubeUploadResponse uploadResponse;
         try {
             uploadResponse = youtubeService.upload(
                     user.getId(),
-                    buildUploadRequest(title, authorName),
+                    youtubeUploadForm,
                     multipartFile
             );
         } finally {
@@ -97,9 +96,9 @@ public class VideoService {
             log.warn("유튜브 업로드 결과에 videoId/youtubeUrl 없음 - 저장 생략");
         }
 
-        VideoResponse.VideoInfo info = new VideoResponse.VideoInfo(videoId, youtubeUrl);
-        log.info("응답 생성 완료 - videoId={}, youtubeUrl={}", videoId, youtubeUrl);
-        return new VideoResponse.Create(Collections.singletonList(info));
+        VideoResponse.Create info = new VideoResponse.Create(videoId, youtubeUrl, youtubeUploadForm.title());
+        log.info("응답 생성 완료 - videoId={}, youtubeUrl={}, videoTitle={}", videoId, youtubeUrl, youtubeUploadForm.title());
+        return info;
     }
 
     private Book upsertBook(Users user, String title, String authorName) {

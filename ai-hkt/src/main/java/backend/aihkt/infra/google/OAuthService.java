@@ -16,10 +16,10 @@ import java.util.Map;
 public class OAuthService {
     private final WebClient webClient;
 
-    @Value("${GOOGLE_CLIENT_ID}")
+    @Value("${spring.security.oauth2.client.registration.google.client-id}")
     private String clientId;
 
-    @Value("${GOOGLE_CLIENT_SECRET}")
+    @Value("${spring.security.oauth2.client.registration.google.client-secret}")
     private String clientSecret;
 
     private static final List<String> SCOPES = List.of(

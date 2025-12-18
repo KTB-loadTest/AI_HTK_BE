@@ -15,6 +15,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -22,7 +24,14 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -50,15 +59,23 @@ public class VideoService {
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
         log.info("영상 생성 시작 - userId={}, title={}, author={}", userId, title, authorName);
 
-        byte[] videoBytes = requestTrailer(title, authorName);
-        log.info("트레일러 생성 완료 - bytes={}", videoBytes == null ? 0 : videoBytes.length);
-        MultipartFile multipartFile = toMultipartFile(videoBytes, buildFileName(title));
+        MultipartFile multipartFile = requestTrailer(title, authorName);
+        log.info("트레일러 생성 완료 - sizeBytes={}", multipartFile == null ? 0 : multipartFile.getSize());
 
-        YoutubeUploadResponse uploadResponse = youtubeService.upload(
-                user.getId(),
-                buildUploadRequest(title, authorName),
-                multipartFile
-        );
+        YoutubeUploadResponse uploadResponse;
+        try {
+            uploadResponse = youtubeService.upload(
+                    user.getId(),
+                    buildUploadRequest(title, authorName),
+                    multipartFile
+            );
+        } finally {
+            // 임시 파일 정리
+            if (multipartFile instanceof PathMultipartFile pmf) {
+                pmf.deleteQuietly();
+            }
+        }
+
         log.info("유튜브 업로드 완료 - status={}, videoId={}, youtubeUrl={}",
                 uploadResponse.statusCode(), uploadResponse.videoId(), uploadResponse.youtubeUrl());
 
@@ -92,18 +109,21 @@ public class VideoService {
                 .orElseGet(() -> bookRepository.save(Book.create(safeTitle, safeAuthor, user)));
     }
 
-    private byte[] requestTrailer(String title, String authorName) {
+    private MultipartFile requestTrailer(String title, String authorName) {
         if (!StringUtils.hasText(trailerApiUrl)) {
             throw new IllegalStateException("trailer.api.url 설정이 없습니다.");
         }
 
-        try {
-            log.info("[Trailer]");
+        String filename = buildFileName(title);
 
-            return reactorWebClient.post()
+        try {
+            Path tempFile = Files.createTempFile("trailer_", ".mp4");
+            log.info("[Trailer] request start - url={}, tempFile={}, filename={}", trailerApiUrl, tempFile, filename);
+
+            Flux<DataBuffer> bodyFlux = reactorWebClient.post()
                     .uri(trailerApiUrl)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .accept(MediaType.valueOf("video/mp4"))
+                    .accept(MediaType.valueOf("video/mp4"), MediaType.APPLICATION_JSON)
                     .bodyValue(Map.of("title", title, "author", authorName))
                     .retrieve()
                     .onStatus(
@@ -112,10 +132,26 @@ public class VideoService {
                                     .defaultIfEmpty("422인데 응답 바디 없음")
                                     .map(body -> new IllegalArgumentException("FastAPI 422: " + body))
                     )
-                    .bodyToMono(byte[].class)
-                    .block(Duration.ofMinutes(10));
+                    .bodyToFlux(DataBuffer.class);
+
+            // 스트리밍으로 파일에 기록 (메모리 버퍼 제한 회피)
+            Mono<Path> written = DataBufferUtils.write(bodyFlux, tempFile)
+                    .timeout(Duration.ofMinutes(10))
+                    .thenReturn(tempFile);
+
+            Path writtenPath = written.block();
+            if (writtenPath == null) {
+                throw new IllegalStateException("트레일러 파일 저장 실패: 경로가 null입니다.");
+            }
+
+            long size = Files.size(writtenPath);
+            log.info("[Trailer] saved - path={}, sizeBytes={}", writtenPath, size);
+
+            return new PathMultipartFile("file", filename, "video/mp4", writtenPath);
         } catch (WebClientResponseException ex) {
             throw new IllegalStateException("트레일러 생성 API 실패: HTTP " + ex.getStatusCode().value(), ex);
+        } catch (IOException e) {
+            throw new IllegalStateException("트레일러 파일 저장/조회 중 I/O 오류", e);
         }
     }
 
@@ -195,6 +231,71 @@ public class VideoService {
         @Override
         public void transferTo(java.io.File dest) throws java.io.IOException {
             java.nio.file.Files.write(dest.toPath(), bytes);
+        }
+    }
+
+    private static class PathMultipartFile implements MultipartFile {
+        private final String name;
+        private final String originalFilename;
+        private final String contentType;
+        private final Path path;
+
+        PathMultipartFile(String name, String originalFilename, String contentType, Path path) {
+            this.name = name;
+            this.originalFilename = originalFilename;
+            this.contentType = contentType;
+            this.path = path;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getOriginalFilename() {
+            return originalFilename;
+        }
+
+        @Override
+        public String getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return getSize() == 0;
+        }
+
+        @Override
+        public long getSize() {
+            try {
+                return Files.size(path);
+            } catch (IOException e) {
+                return 0;
+            }
+        }
+
+        @Override
+        public byte[] getBytes() throws IOException {
+            return Files.readAllBytes(path);
+        }
+
+        @Override
+        public InputStream getInputStream() throws IOException {
+            return Files.newInputStream(path);
+        }
+
+        @Override
+        public void transferTo(File dest) throws IOException {
+            Files.copy(path, dest.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        void deleteQuietly() {
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException ignored) {
+            }
         }
     }
 }

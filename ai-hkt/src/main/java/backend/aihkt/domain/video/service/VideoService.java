@@ -5,6 +5,8 @@ import backend.aihkt.domain.user.repository.UserRepository;
 import backend.aihkt.domain.video.dto.VideoResponse;
 import backend.aihkt.domain.video.entity.Video;
 import backend.aihkt.domain.video.repository.VideoRepository;
+import backend.aihkt.domain.book.entity.Book;
+import backend.aihkt.domain.book.repository.BookRepository;
 import backend.aihkt.youtube.dto.YoutubeUploadRequest;
 import backend.aihkt.youtube.dto.YoutubeUploadResponse;
 import backend.aihkt.youtube.service.YoutubeService;
@@ -29,6 +31,7 @@ public class VideoService {
     private final WebClient webClient;
     private final UserRepository userRepository;
     private final VideoRepository videoRepository;
+    private final BookRepository bookRepository;
     private final YoutubeService youtubeService;
 
     @Value("${trailer.api.url}")
@@ -49,13 +52,14 @@ public class VideoService {
 
         String videoId = uploadResponse.videoId();
         String youtubeUrl = uploadResponse.youtubeUrl();
+        Book book = upsertBook(user, title, authorName);
 
         if (videoId != null && youtubeUrl != null) {
             Video video = Video.create(
                     videoId,
                     youtubeUrl,
                     uploadResponse.resumableUploadUrl(),
-                    null,
+                    book,
                     true
             );
             videoRepository.save(video);
@@ -63,6 +67,13 @@ public class VideoService {
 
         VideoResponse.VideoInfo info = new VideoResponse.VideoInfo(videoId, youtubeUrl);
         return new VideoResponse.Create(Collections.singletonList(info));
+    }
+
+    private Book upsertBook(Users user, String title, String authorName) {
+        String safeTitle = (title == null || title.isBlank()) ? "제목 없음" : title;
+        String safeAuthor = (authorName == null || authorName.isBlank()) ? "저자 미상" : authorName;
+        return bookRepository.findFirstByTitleAndAuthorAndUser(safeTitle, safeAuthor, user)
+                .orElseGet(() -> bookRepository.save(Book.create(safeTitle, safeAuthor, user)));
     }
 
     private byte[] requestTrailer(String title, String authorName) {

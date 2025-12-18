@@ -10,10 +10,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Getter
 public class Book {
     
     @Id
@@ -29,4 +31,12 @@ public class Book {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private Users user;
+
+    public static Book create(String title, String author, Users user) {
+        Book book = new Book();
+        book.title = title;
+        book.author = author;
+        book.user = user;
+        return book;
+    }
 }

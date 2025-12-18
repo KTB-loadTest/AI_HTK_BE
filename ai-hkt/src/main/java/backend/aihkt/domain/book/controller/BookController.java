@@ -46,9 +46,9 @@ public class BookController {
 
     @Operation(summary = "책별 유튜브 URL 조회", description = "bookId에 매핑된 모든 유튜브 URL을 반환합니다.")
     @ApiResponse(responseCode = "200", description = "조회 성공",
-            content = @Content(array = @ArraySchema(schema = @Schema(implementation = String.class))))
+            content = @Content(schema = @Schema(implementation = BookResponse.BookWithUrls.class)))
     @GetMapping("/{bookId}/youtube-urls")
-    public ResponseEntity<List<String>> getYoutubeUrls(@PathVariable("bookId") Long bookId) {
+    public ResponseEntity<BookResponse.BookWithUrls> getYoutubeUrls(@PathVariable("bookId") Long bookId) {
         return ResponseEntity.ok(bookService.getYoutubeUrlsByBookId(bookId));
     }
 }

@@ -9,4 +9,19 @@ public class BookResponse {
             Long userId
     ) {
     }
+
+    public record BookWithUrls(
+            Long id,
+            String title,
+            String author,
+            Long userId,
+            java.util.List<VideoInfo> videos
+    ) {
+    }
+
+    public record VideoInfo(
+            String videoId,
+            String youtubeUrl
+    ) {
+    }
 }

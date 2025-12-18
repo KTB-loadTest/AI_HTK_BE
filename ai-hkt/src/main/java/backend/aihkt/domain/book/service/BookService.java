@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,10 +35,21 @@ public class BookService {
         return toBookInfoList(books);
     }
 
-    public List<String> getYoutubeUrlsByBookId(Long bookId) {
-        return videoRepository.findAllByBook_Id(bookId).stream()
-                .map(v -> v.getYoutubeUrl())
+    public BookResponse.BookWithUrls getYoutubeUrlsByBookId(Long bookId) {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new IllegalArgumentException("책을 찾을 수 없습니다: " + bookId));
+
+        List<BookResponse.VideoInfo> videos = videoRepository.findAllByBook_Id(bookId).stream()
+                .map(v -> new BookResponse.VideoInfo(v.getId(), v.getYoutubeUrl()))
                 .collect(Collectors.toList());
+
+        return new BookResponse.BookWithUrls(
+                book.getId(),
+                book.getTitle(),
+                book.getAuthor(),
+                book.getUser() == null ? null : book.getUser().getId(),
+                videos
+        );
     }
 
     private Users getUser(Long userId) {

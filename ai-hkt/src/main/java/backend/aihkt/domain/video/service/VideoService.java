@@ -11,6 +11,7 @@ import backend.aihkt.youtube.dto.YoutubeUploadRequest;
 import backend.aihkt.youtube.dto.YoutubeUploadResponse;
 import backend.aihkt.youtube.service.YoutubeService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class VideoService {
     private final WebClient webClient;
     private final UserRepository userRepository;
@@ -40,8 +42,10 @@ public class VideoService {
     public VideoResponse.Create createVideos(Long userId, String title, String authorName) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+        log.info("영상 생성 시작 - userId={}, title={}, author={}", userId, title, authorName);
 
         byte[] videoBytes = requestTrailer(title, authorName);
+        log.info("트레일러 생성 완료 - bytes={}", videoBytes == null ? 0 : videoBytes.length);
         MultipartFile multipartFile = toMultipartFile(videoBytes, buildFileName(title));
 
         YoutubeUploadResponse uploadResponse = youtubeService.upload(
@@ -49,6 +53,8 @@ public class VideoService {
                 buildUploadRequest(title, authorName),
                 multipartFile
         );
+        log.info("유튜브 업로드 완료 - status={}, videoId={}, youtubeUrl={}",
+                uploadResponse.statusCode(), uploadResponse.videoId(), uploadResponse.youtubeUrl());
 
         String videoId = uploadResponse.videoId();
         String youtubeUrl = uploadResponse.youtubeUrl();
@@ -63,9 +69,13 @@ public class VideoService {
                     true
             );
             videoRepository.save(video);
+            log.info("비디오 저장 완료 - videoId={}, bookId={}", videoId, book.getId());
+        } else {
+            log.warn("유튜브 업로드 결과에 videoId/youtubeUrl 없음 - 저장 생략");
         }
 
         VideoResponse.VideoInfo info = new VideoResponse.VideoInfo(videoId, youtubeUrl);
+        log.info("응답 생성 완료 - videoId={}, youtubeUrl={}", videoId, youtubeUrl);
         return new VideoResponse.Create(Collections.singletonList(info));
     }
 

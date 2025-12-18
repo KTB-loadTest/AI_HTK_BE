@@ -236,10 +236,14 @@ public class VideoService {
                 description,
                 List.of(title, authorName),
                 null,
-                "private",
+                "public",
                 true,
                 null
         );
+    }
+
+    public VideoRepository getVideoRepository() {
+        return videoRepository;
     }
 
     private static class SimpleMultipartFile implements MultipartFile {

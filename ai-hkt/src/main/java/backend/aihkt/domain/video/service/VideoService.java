@@ -10,6 +10,8 @@ import backend.aihkt.domain.book.repository.BookRepository;
 import backend.aihkt.youtube.dto.YoutubeUploadRequest;
 import backend.aihkt.youtube.dto.YoutubeUploadResponse;
 import backend.aihkt.youtube.service.YoutubeService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,6 +37,7 @@ public class VideoService {
     private final VideoRepository videoRepository;
     private final BookRepository bookRepository;
     private final YoutubeService youtubeService;
+    private final ObjectMapper objectMapper;
 
     @Value("${trailer.api.url}")
     private String trailerApiUrl;
@@ -92,15 +95,16 @@ public class VideoService {
         }
 
         try {
+            byte[] jsonBody = objectMapper.writeValueAsBytes(java.util.Map.of(
+                    "title", title,
+                    "author", authorName
+            ));
+
             return webClient.post()
                     .uri(UriComponentsBuilder.fromUriString(trailerApiUrl).build(true).toUri())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.valueOf("video/mp4"))
-                    .body(BodyInserters.fromValue(
-                            java.util.Map.of(
-                                    "title", title,
-                                    "author", authorName
-                            )))
+                    .bodyValue(jsonBody)
                     .retrieve()
                     .onStatus(
                             status -> status.value() == 422,
@@ -112,6 +116,8 @@ public class VideoService {
                     .block(Duration.ofMinutes(10)); // AI 생성이 오래 걸리므로 타임아웃 넉넉히
         } catch (WebClientResponseException ex) {
             throw new IllegalStateException("트레일러 생성 API 실패: HTTP " + ex.getStatusCode().value(), ex);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("JsonParsing Error!!!!!!");
         }
     }
 
